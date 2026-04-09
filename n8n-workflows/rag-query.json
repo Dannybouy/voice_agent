@@ -1,0 +1,135 @@
+{
+  "name": "VAPI RAG Query",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi-rag-query",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "vapi-rag-query",
+      "notes": "Production URL: https://[your-instance].app.n8n.cloud/webhook/vapi-rag-query — set this as the server URL in the search_knowledge_base tool definition in VAPI."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract tool call data from the VAPI webhook payload\nconst body = $input.first().json.body;\n\nif (!body || !body.message) {\n  throw new Error('Invalid VAPI webhook payload: missing body.message');\n}\n\nconst message = body.message;\nconst toolCallList = message.toolCallList;\n\nif (!toolCallList || toolCallList.length === 0) {\n  throw new Error('No tool calls found in VAPI message');\n}\n\nconst toolCall = toolCallList[0];\nconst args = toolCall.function?.arguments || toolCall.arguments || {};\n\n// Parse arguments if they come as a JSON string\nconst parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;\n\nreturn [{\n  json: {\n    toolCallId: toolCall.id,\n    query: parsedArgs.query,\n    callId: message.call?.id || ''\n  }\n}];"
+      },
+      "id": "extract-tool-call",
+      "name": "Extract Tool Call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-text",
+        "tableName": "documents",
+        "queryName": "match_documents",
+        "topK": 4,
+        "options": {}
+      },
+      "id": "supabase-vector-store",
+      "name": "Supabase Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "REPLACE_WITH_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase — RelayPay"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "id": "openai-embeddings",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [680, 460],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_WITH_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI — RelayPay"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format the retrieved chunks into a VAPI tool result response\nconst allItems = $input.all();\n\n// Get toolCallId from the Extract Tool Call node\nconst toolCallId = $('Extract Tool Call').first().json.toolCallId;\n\n// Build context string from retrieved document chunks\nlet contextText = '';\n\nif (allItems && allItems.length > 0) {\n  const chunks = allItems\n    .map((item, i) => {\n      const content = item.json.pageContent || item.json.content || item.json.text || '';\n      return content.trim().length > 0 ? `[Excerpt ${i + 1}]: ${content.trim()}` : null;\n    })\n    .filter(Boolean);\n\n  if (chunks.length > 0) {\n    contextText = `Here is relevant information from the RelayPay knowledge base:\\n\\n${chunks.join('\\n\\n')}`;\n  }\n}\n\nif (!contextText) {\n  contextText = 'No relevant information was found in the RelayPay knowledge base for that question. Please let the user know you cannot find documentation on that topic and offer to escalate if needed.';\n}\n\n// VAPI expects this exact response format for tool results\nreturn [{\n  json: {\n    results: [\n      {\n        toolCallId: toolCallId,\n        result: contextText\n      }\n    ]\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "Format VAPI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{ "node": "Extract Tool Call", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract Tool Call": {
+      "main": [
+        [{ "node": "Supabase Vector Store", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [{ "node": "Supabase Vector Store", "type": "ai_embedding", "index": 0 }]
+      ]
+    },
+    "Supabase Vector Store": {
+      "main": [
+        [{ "node": "Format VAPI Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format VAPI Response": {
+      "main": [
+        [{ "node": "Respond to Webhook", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "description": "Synchronous VAPI tool call handler for knowledge base search. Receives a query from VAPI, embeds it using OpenAI text-embedding-3-small, retrieves the top 4 matching chunks from Supabase pgvector, and returns formatted context back to VAPI for Claude to use in its response.",
+    "notes": "SETUP: Replace credential IDs. Webhook URL to configure in VAPI tool: https://[instance].app.n8n.cloud/webhook/vapi-rag-query. The Supabase Vector Store node needs 'retrieve-as-text' mode with query sourced from the Extract Tool Call output."
+  }
+}

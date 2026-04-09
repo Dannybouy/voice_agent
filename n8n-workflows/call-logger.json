@@ -1,0 +1,126 @@
+{
+  "name": "VAPI Call Logger",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi-call-logger",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "vapi-call-logger",
+      "notes": "Production URL: https://[your-instance].app.n8n.cloud/webhook/vapi-call-logger — set this as the serverUrl on the VAPI assistant object (NOT as a tool). This fires asynchronously at end of call. Response mode is 'onReceived' (immediate 200) since VAPI does not wait for this response."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "event-type-check",
+              "leftValue": "={{ $json.body.message.type }}",
+              "rightValue": "end-of-call-report",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-event-type",
+      "name": "Filter: end-of-call-report",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "notes": "Only process end-of-call-report events. VAPI may send other event types to this URL (e.g. status-update). The false branch discards all other events."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and normalize call data from VAPI end-of-call-report\nconst body = $input.first().json.body;\nconst message = body.message || {};\nconst call = message.call || {};\nconst artifact = message.artifact || {};\nconst analysis = message.analysis || {};\n\n// Calculate duration in seconds\nlet durationSeconds = 0;\nif (call.startedAt && call.endedAt) {\n  const start = new Date(call.startedAt).getTime();\n  const end = new Date(call.endedAt).getTime();\n  durationSeconds = Math.round((end - start) / 1000);\n}\n\n// Determine call outcome\nconst endedReason = message.endedReason || call.endedReason || '';\nconst transcript = artifact.transcript || '';\n\nlet outcome = 'Answered';\nconst lowerTranscript = transcript.toLowerCase();\n\nif (lowerTranscript.includes('escalat') || lowerTranscript.includes('specialist') || lowerTranscript.includes('support team will contact')) {\n  outcome = 'Escalated';\n} else if (\n  endedReason === 'silence-timed-out' ||\n  endedReason === 'no-answer' ||\n  endedReason === 'customer-did-not-answer'\n) {\n  outcome = 'Dropped';\n} else if (\n  lowerTranscript.includes(\"i'm not able to help with that\") ||\n  lowerTranscript.includes('outside the scope') ||\n  lowerTranscript.includes('cannot confidently')\n) {\n  outcome = 'Declined';\n}\n\nreturn [{\n  json: {\n    callId: call.id || '',\n    timestamp: call.startedAt || new Date().toISOString(),\n    durationSeconds: durationSeconds,\n    transcript: transcript,\n    outcome: outcome,\n    endedReason: endedReason,\n    summary: analysis.summary || '',\n    agentVersion: 'v1.0'\n  }\n}];"
+      },
+      "id": "extract-call-data",
+      "name": "Extract Call Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 220]
+    },
+    {
+      "parameters": {
+        "application": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Call Logs",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Call ID": "={{ $json.callId }}",
+            "Timestamp": "={{ $json.timestamp }}",
+            "Duration (seconds)": "={{ $json.durationSeconds }}",
+            "Transcript": "={{ $json.transcript }}",
+            "Outcome": "={{ $json.outcome }}",
+            "Ended Reason": "={{ $json.endedReason }}",
+            "Summary": "={{ $json.summary }}",
+            "Agent Version": "={{ $json.agentVersion }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "airtable-create-log",
+      "name": "Create Call Log",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [900, 220],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable — RelayPay"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "no-op",
+      "name": "Ignore Other Events",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [680, 420]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{ "node": "Filter: end-of-call-report", "type": "main", "index": 0 }]
+      ]
+    },
+    "Filter: end-of-call-report": {
+      "main": [
+        [{ "node": "Extract Call Data", "type": "main", "index": 0 }],
+        [{ "node": "Ignore Other Events", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract Call Data": {
+      "main": [
+        [{ "node": "Create Call Log", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "description": "Async end-of-call webhook handler. Fires when VAPI sends an end-of-call-report event. Extracts call ID, duration, transcript, and outcome, then creates a row in the Airtable Call Logs table. Uses 'onReceived' response mode — VAPI does not wait for a response from this webhook.",
+    "notes": "SETUP: (1) Replace Airtable credential ID. (2) Set AIRTABLE_BASE_ID env var. (3) Configure this webhook URL as the 'serverUrl' field on the VAPI assistant (not as a tool). The IF node filters to only process 'end-of-call-report' events."
+  }
+}

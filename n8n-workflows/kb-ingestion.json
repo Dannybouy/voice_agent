@@ -1,0 +1,121 @@
+{
+  "name": "KB Ingestion — One Time",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.KB_PDF_URL }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "http-request",
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "notes": "Set KB_PDF_URL in n8n environment variables or replace with the direct Google Drive download URL: https://drive.google.com/uc?export=download&id=FILE_ID"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "extract-from-file",
+      "name": "Extract from PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Chunk the extracted PDF text into overlapping segments\n// 500-word chunks with 50-word overlap\nconst text = $input.first().json.text || $input.first().json.content || '';\n\nif (!text || text.trim().length === 0) {\n  throw new Error('No text extracted from PDF. Check the extraction step.');\n}\n\nconst CHUNK_SIZE = 500;  // words per chunk\nconst OVERLAP = 50;      // words of overlap between chunks\n\nconst words = text.split(/\\s+/).filter(w => w.length > 0);\nconst chunks = [];\nlet i = 0;\n\nwhile (i < words.length) {\n  const chunk = words.slice(i, i + CHUNK_SIZE).join(' ');\n  if (chunk.trim().length > 30) { // skip very short fragments\n    chunks.push({\n      json: {\n        pageContent: chunk,\n        metadata: {\n          source: 'relaypay-kb-v1',\n          chunkIndex: chunks.length,\n          startWord: i,\n          endWord: Math.min(i + CHUNK_SIZE, words.length)\n        }\n      }\n    });\n  }\n  i += (CHUNK_SIZE - OVERLAP);\n}\n\nconsole.log(`Created ${chunks.length} chunks from ${words.length} words`);\nreturn chunks;"
+      },
+      "id": "chunk-text",
+      "name": "Chunk Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": "documents",
+        "options": {}
+      },
+      "id": "supabase-vector-store",
+      "name": "Supabase Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1,
+      "position": [1120, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "REPLACE_WITH_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase — RelayPay"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "id": "openai-embeddings",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [1120, 460],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_WITH_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI — RelayPay"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [{ "node": "Download PDF", "type": "main", "index": 0 }]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [{ "node": "Extract from PDF", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract from PDF": {
+      "main": [
+        [{ "node": "Chunk Text", "type": "main", "index": 0 }]
+      ]
+    },
+    "Chunk Text": {
+      "main": [
+        [{ "node": "Supabase Vector Store", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [{ "node": "Supabase Vector Store", "type": "ai_embedding", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "description": "One-time workflow. Downloads the RelayPay KB PDF, extracts text, chunks it into 500-word segments with 50-word overlap, generates embeddings via OpenAI text-embedding-3-small, and stores them in Supabase pgvector. Run once after setting up the Supabase schema. After execution, create the HNSW index in Supabase SQL Editor.",
+    "notes": "SETUP REQUIRED: (1) Replace credential IDs above with your actual n8n credential IDs. (2) Set KB_PDF_URL env var or hardcode the Google Drive download URL in the HTTP Request node. (3) After running, execute the HNSW index SQL in supabase/schema.sql."
+  }
+}
