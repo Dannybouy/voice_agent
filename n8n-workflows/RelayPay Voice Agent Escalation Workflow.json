@@ -1,0 +1,793 @@
+{
+  "name": "RelayPay Voice Agent Escalation Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "availableInChat": true,
+        "agentIcon": {
+          "type": "icon",
+          "value": "brain"
+        },
+        "agentName": "RelayPay Agent",
+        "agentDescription": "This is a agent used to answer question about relayPay",
+        "suggestedPrompts": {
+          "prompts": []
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -480,
+        1280
+      ],
+      "id": "7bd5a5c4-4b57-4fbc-942e-a5f08d0f72a5",
+      "name": "Chat Trigger",
+      "webhookId": "c2c4c9cb-7495-4ac7-8e8b-abf932bd0461",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=## Role\nYou are a customer support agent for RelayPay, a B2B fintech platform focused on the Nigerian market. You help businesses with questions about international payments, invoicing, payouts, and compliance.\n\n## Decision Logic\n1. ANSWER DIRECTLY if the question is clearly general and the answer exists in your knowledge or retrieved context. Do not reference URLs or link to help center articles.\n2. ASK A CLARIFYING QUESTION if the question is vague or has multiple interpretations.\n3. ESCALATE TO HUMAN if the question involves specific account details, compliance decisions, disputes, refunds, account restrictions, or the user is frustrated. Say: \"I'd like to connect you with a specialist who can help with that.\"\n4. DECLINE GRACEFULLY if the documentation doesn't cover the topic or answering would require guessing. Say: \"I don't have enough information to answer that accurately.\"\n\n## Core FAQ (Instant Answers)\n- What is RelayPay? → A B2B fintech platform for international payments, multi-currency invoicing, and payout management.\n- Who is RelayPay for? → Startups, SMEs, and growing businesses operating across borders, currently focused on the Nigerian market.\n- How long do payments take? → Local payouts: 1-2 business days. International: 2-5 business days depending on destination and banking partners.\n- How does RelayPay charge fees? → Fees vary by transaction type, corridor, and payment method. All fees shown before confirmation.\n- Are exchange rates fixed? → No, rates fluctuate with market conditions.\n- Can I create invoices in multiple currencies? → Yes.\n- Why might my payment be delayed? → Bank processing times, public holidays, compliance reviews, or beneficiary detail issues.\n- What does RelayPay NOT support? → Cryptocurrency payments, P2P transfers, manual compliance overrides.\n\n## Rules\n- Always use the knowledge_search tool for questions not covered in the Core FAQ above.\n- NEVER guess or speculate. Only answer from retrieved context or the FAQ above.\n- NEVER promise specific timelines, outcomes, or dispute resolutions.\n- NEVER reveal internal compliance logic or risk thresholds.\n- NEVER reference URLs, links, or direct users to web pages.\n- Keep responses concise for spoken delivery.\n- Be warm, professional, and reassuring — this is a fintech product handling people's money.\n- If the user mentions \"my account\", \"my payment\", \"my transaction\", or any personal reference, treat it as account-specific and escalate."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -240,
+        1264
+      ],
+      "id": "30932238-1f3a-43e8-b6a8-2cff769b6aff",
+      "name": "AI Agent",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -464,
+        1488
+      ],
+      "id": "e496253c-0f95-4fbb-9257-21ae60f8e1c4",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "suHRbsiF8CAruQKw",
+          "name": "OpenAI Key"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -256,
+        1488
+      ],
+      "id": "80aed857-f763-44dd-a2f1-d504025ba688",
+      "name": "Simple Memory",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "options": {
+          "queryName": "match_documents"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        -16,
+        1616
+      ],
+      "id": "8395231d-d7d1-40f4-ac72-8e000f1978ed",
+      "name": "Supabase Vector Store2",
+      "credentials": {
+        "supabaseApi": {
+          "id": "OnIvpwFD8V7FgEQC",
+          "name": "Supabase Acct Access"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        96,
+        1792
+      ],
+      "id": "6fa19f11-7384-485f-bd96-cc36e0aba9ae",
+      "name": "Embeddings OpenAI1",
+      "credentials": {
+        "openAiApi": {
+          "id": "suHRbsiF8CAruQKw",
+          "name": "OpenAI Key"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        336,
+        1568
+      ],
+      "id": "b0d83e65-be68-4d2a-9389-1e3b05657de3",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "suHRbsiF8CAruQKw",
+          "name": "OpenAI Key"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "description": "Search the RelayPay knowledge base for information about product features, policies, compliance, FAQs, fees, payments, invoicing, payouts, account management, and release notes. Use this tool when the question is not covered in the core FAQ section of your instructions.",
+        "topK": 2
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "typeVersion": 1.1,
+      "position": [
+        16,
+        1408
+      ],
+      "id": "88e20987-5bdf-4cb6-a3a7-6363bc267d51",
+      "name": "knowledge_search",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract escalation data from VAPI tool call payload\nconst body = $input.first().json.body;\n\nif (!body || !body.message) {\n  throw new Error('Invalid VAPI webhook payload: missing body.message');\n}\n\nconst message = body.message;\nconst toolCallList = message.toolCallList;\n\nif (!toolCallList || toolCallList.length === 0) {\n  throw new Error('No tool calls in VAPI message');\n}\n\nconst toolCall = toolCallList[0];\nconst args = toolCall.function?.arguments\nconst parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;\n\nconst now = new Date();\n\nreturn [{\n  json: {\n    toolCallId: toolCall.id,\n    callerName: parsedArgs.user_name || 'Unknown',\n    callerEmail: parsedArgs.user_email || '',\n    preferredTime: parsedArgs.preferred_time || 'Not specified',\n    category: parsedArgs.category || 'Other',\n    escalationReason: parsedArgs.reason || 'No reason provided',\n    callId: parsedArgs.call_id || message.call?.id || '',\n    timestamp: now.toISOString(),\n    timestampReadable: now.toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })\n  }\n}];"
+      },
+      "id": "2d1da38e-99a1-4636-8aba-e6f4573d6c27",
+      "name": "Extract Escalation Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format the success response back to VAPI\nconst data = $('Extract Escalation Data').first().json;\nconst appointmentDisplay = $('Calculate Appointment Time').first().json.appointmentDisplay;\nconst userName = $('Extract Escalation Data').first().json.callerName;\n\nreturn [{\n  json: {\n    results: [\n      {\n        toolCallId: data.toolCallId,\n        result: `Thank you, ${userName}. Your request has been logged, A confirmation email has been sent to the email address provided. A RelayPay support specialist will contact you at your preferred time: ${appointmentDisplay}. Is there anything else before we end the call?`\n      }\n    ]\n  }\n}];"
+      },
+      "id": "fb552bd1-703c-4d55-92cb-2409544c3fb7",
+      "name": "Format Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2864,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "fa629a2f-8cc7-4dcc-9237-3e9d7695f8d8",
+      "name": "Respond to Webhook2",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3120,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0ARBT1DC31",
+          "mode": "list",
+          "cachedResultName": "support-escalations"
+        },
+        "text": "=🔔 *New Escalation Alert*\n\n*Customer:* {{ $('Extract Escalation Data').item.json.callerName }}\n*Email:* {{ $('Extract Escalation Data').item.json.callerEmail }}\n*Category:* {{ $('Extract Escalation Data').item.json.category }}\n*Reason:* {{ $('Extract Escalation Data').item.json.escalationReason }}\n*Callback:* {{ $('Calculate Appointment Time').item.json.appointmentDisplay }}\n*Call ID:* {{ $('Extract Escalation Data').item.json.callId }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        2672,
+        1040
+      ],
+      "id": "cabe856e-9570-4f49-8760-42f2562d8b6f",
+      "name": "Send a message",
+      "webhookId": "d380a82a-5133-4ab4-bef7-50ba6687712a",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "4SilK3AMEDA1fxfw",
+          "name": "Slack OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "afbf7e27141f409202f526f2257c27a94ce7e8cb3577ad75f9f6f25976e41d80@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "RelayPay Support Callbacks"
+        },
+        "start": "={{ $json.appointmentStart }}",
+        "end": "={{ $json.appointmentEnd }}",
+        "additionalFields": {
+          "description": "=Customer: {{ $json.callerName }} Email: {{ $json.callerEmail }} Category: {{ $json.category }} Reason: {{ $json.escalationReason }} Call ID: {{ $json.callId }}",
+          "summary": "=RelayPay Support Callback - {{ $json.callerName }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        2288,
+        1040
+      ],
+      "id": "4836c4b3-cf59-41d2-a337-882023e85655",
+      "name": "Create an event",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "wj9vinJaF69w1Gib",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi-escalation",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "4e055b72-0b7e-4b1d-926d-e951c2632055",
+      "name": "Escalation Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        1200
+      ],
+      "webhookId": "vapi-escalation",
+      "notes": "Production URL: https://[your-instance].app.n8n.cloud/webhook/vapi-escalation — set this as the server URL in the create_escalation tool definition in VAPI."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0dc6c9f3-07be-44c5-81ac-8f4e5ef90f3d",
+              "leftValue": "={{$json.toolCallId}}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "d1b3f340-7b4c-41a6-9603-b07f7176f679",
+              "leftValue": "={{ $json.callerName }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "a0424072-aaab-42f3-9b04-a61597b0b8b4",
+              "leftValue": "={{ $json.callerEmail }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "9fd4785b-68d5-4aa1-bf69-19b3a85db5b9",
+              "leftValue": "={{ $json.preferredTime }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1872,
+        1200
+      ],
+      "id": "5f796ba5-a595-409b-8963-9497a30619e9",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": true\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2112,
+        1312
+      ],
+      "id": "f165b9b9-2873-4e77-a35c-7c7e95cb823c",
+      "name": "Respond to Webhook3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nlet appointmentStart;\n\nif (data.preferredTime) {\n  appointmentStart = parseNaturalTime(data.preferredTime);\n} else {\n  appointmentStart = getNextBusinessDay();\n}\n\n// Validate: if parsing failed or date is in the past\nif (!appointmentStart || isNaN(appointmentStart.getTime()) || appointmentStart < new Date()) {\n  appointmentStart = getNextBusinessDay();\n}\n\nfunction parseNaturalTime(input) {\n  const text = input.toLowerCase().trim();\n  const now = new Date();\n  \n  // WAT offset: work in UTC+1\n  const watNow = new Date(now.getTime() + (1 * 60 * 60 * 1000));\n  \n  // Extract hour from phrases like \"2pm\", \"2PM\", \"14:00\", \"2:30pm\", \"at 10\"\n  let hour = 10; // default to 10 AM if no time found\n  let minute = 0;\n  \n  const timeMatch = text.match(/(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?/i);\n  if (timeMatch) {\n    hour = parseInt(timeMatch[1]);\n    minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;\n    const ampm = timeMatch[3];\n    \n    if (ampm) {\n      if (ampm.toLowerCase() === 'pm' && hour < 12) hour += 12;\n      if (ampm.toLowerCase() === 'am' && hour === 12) hour = 0;\n    } else if (hour < 8) {\n      // Ambiguous: \"at 2\" probably means 2 PM, not 2 AM\n      hour += 12;\n    }\n  }\n  \n  // Handle \"morning\", \"afternoon\", \"evening\" if no specific time\n  if (!timeMatch) {\n    if (text.includes('morning')) hour = 10;\n    else if (text.includes('afternoon')) hour = 14;\n    else if (text.includes('evening')) hour = 17;\n  }\n  \n  // Determine the date\n  let targetDate = new Date(watNow);\n  \n  if (text.includes('today')) {\n    // Keep today's date\n  } else if (text.includes('tomorrow')) {\n    targetDate.setDate(targetDate.getDate() + 1);\n  } else if (text.includes('next week')) {\n    targetDate.setDate(targetDate.getDate() + 7);\n    // Move to Monday\n    while (targetDate.getDay() !== 1) {\n      targetDate.setDate(targetDate.getDate() + 1);\n    }\n  } else {\n    // Check for day names: \"monday\", \"tuesday\", etc.\n    const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];\n    const foundDay = days.findIndex(d => text.includes(d));\n    \n    if (foundDay !== -1) {\n      const currentDay = watNow.getDay();\n      let daysUntil = foundDay - currentDay;\n      if (daysUntil <= 0) daysUntil += 7; // Always go forward\n      targetDate.setDate(targetDate.getDate() + daysUntil);\n    } else if (text.includes('in') && text.includes('hour')) {\n      // \"in 2 hours\", \"in an hour\"\n      const hoursMatch = text.match(/in\\s+(\\d+|an?)\\s+hour/);\n      if (hoursMatch) {\n        const hrs = hoursMatch[1] === 'an' || hoursMatch[1] === 'a' ? 1 : parseInt(hoursMatch[1]);\n        targetDate = new Date(watNow.getTime() + (hrs * 60 * 60 * 1000));\n        // Use the computed time, not the extracted hour\n        hour = targetDate.getUTCHours();\n        minute = targetDate.getUTCMinutes();\n      }\n    } else {\n      // Can't parse the date portion — default to tomorrow\n      targetDate.setDate(targetDate.getDate() + 1);\n    }\n  }\n  \n  // Set the time (in UTC, so subtract 1 hour for WAT→UTC)\n  targetDate.setUTCHours(hour - 1, minute, 0, 0);\n  \n  // Clamp to business hours: 9 AM - 5 PM WAT (8-16 UTC)\n  const utcHour = targetDate.getUTCHours();\n  if (utcHour < 8) targetDate.setUTCHours(8, 0, 0, 0);   // Before 9 AM WAT → 9 AM\n  if (utcHour >= 16) targetDate.setUTCHours(8, 0, 0, 0);  // After 5 PM WAT → next day 9 AM\n  if (utcHour >= 16) targetDate.setDate(targetDate.getDate() + 1);\n  \n  // Skip weekends\n  while (targetDate.getDay() === 0 || targetDate.getDay() === 6) {\n    targetDate.setDate(targetDate.getDate() + 1);\n  }\n  \n  return targetDate;\n}\n\nfunction getNextBusinessDay() {\n  const now = new Date();\n  let next = new Date(now);\n  next.setDate(next.getDate() + 1);\n  \n  while (next.getDay() === 0 || next.getDay() === 6) {\n    next.setDate(next.getDate() + 1);\n  }\n  \n  // 10:00 AM WAT = 09:00 UTC\n  next.setUTCHours(9, 0, 0, 0);\n  return next;\n}\n\nconst appointmentEnd = new Date(appointmentStart);\nappointmentEnd.setMinutes(appointmentEnd.getMinutes() + 30);\n\nreturn [{\n  json: {\n    ...data,\n    appointmentStart: appointmentStart.toISOString(),\n    appointmentEnd: appointmentEnd.toISOString(),\n    appointmentDisplay: appointmentStart.toLocaleString('en-NG', {\n      weekday: 'long',\n      year: 'numeric',\n      month: 'long',\n      day: 'numeric',\n      hour: '2-digit',\n      minute: '2-digit',\n      timeZone: 'Africa/Lagos'\n    })\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2096,
+        1040
+      ],
+      "id": "b358a5b8-205e-4d12-a020-27407e17e8ec",
+      "name": "Calculate Appointment Time"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appeJd4QOr98COUYM",
+          "mode": "list",
+          "cachedResultName": "Daniel Okpara RelayPay Support",
+          "cachedResultUrl": "https://airtable.com/appeJd4QOr98COUYM"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl5RIRrdUnVAQq80",
+          "mode": "list",
+          "cachedResultName": "Escalations",
+          "cachedResultUrl": "https://airtable.com/appeJd4QOr98COUYM/tbl5RIRrdUnVAQq80"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Call Booked": true,
+            "Timestamp": "={{ $now.toISO() }}",
+            "User Name": "={{ $('Extract Escalation Data').item.json.callerName }}",
+            "User Email": "={{ $('Extract Escalation Data').item.json.callerEmail }}",
+            "Category": "={{ $('Extract Escalation Data').item.json.category }}",
+            "Escalation Reason": "={{ $('Extract Escalation Data').item.json.escalationReason }}",
+            "Appointment Time": "={{ $('Calculate Appointment Time').item.json.appointmentStart }}",
+            "Status": "Open",
+            "Call ID": "={{ $('Extract Escalation Data').item.json.callId }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Escalation ID",
+              "displayName": "Escalation ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "User Name",
+              "displayName": "User Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "User Email",
+              "displayName": "User Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Compliance",
+                  "value": "Compliance"
+                },
+                {
+                  "name": "Account",
+                  "value": "Account"
+                },
+                {
+                  "name": "Dispute",
+                  "value": "Dispute"
+                },
+                {
+                  "name": "Other",
+                  "value": "Other"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Escalation Reason",
+              "displayName": "Escalation Reason",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Call Booked",
+              "displayName": "Call Booked",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Appointment Time",
+              "displayName": "Appointment Time",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Open",
+                  "value": "Open"
+                },
+                {
+                  "name": "In Progress",
+                  "value": "In Progress"
+                },
+                {
+                  "name": "Closed",
+                  "value": "Closed"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Call ID",
+              "displayName": "Call ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "1d73b558-c9d6-4ced-9c0a-eb6fb0c3428b",
+      "name": "Create Escalation Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2480,
+        1040
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "0dskSFLlZcR7qZGl",
+          "name": "Airtable Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Stage 3: Escalation Workflow",
+        "width": 416
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1488,
+        864
+      ],
+      "typeVersion": 1,
+      "id": "979a0fad-4d74-4020-afba-6034c920c5ba",
+      "name": "Sticky Note1",
+      "disabled": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store2": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "knowledge_search",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store2",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "knowledge_search",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "knowledge_search": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Escalation Data": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Success Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Format Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an event": {
+      "main": [
+        [
+          {
+            "node": "Create Escalation Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalation Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Escalation Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Calculate Appointment Time",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Appointment Time": {
+      "main": [
+        [
+          {
+            "node": "Create an event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Escalation Record": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "334c7c27-358a-41aa-890a-7b798652f57e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2c950992e72c1f7626700d7c88cf07f1fa608dd6abbe3ba3e9ff0a6cfdcbd670"
+  },
+  "id": "edXpj9B7F7RR4tJL",
+  "tags": []
+}

@@ -1,0 +1,668 @@
+{
+  "name": "RelayPay Update Escalation Workflow",
+  "nodes": [
+    {
+      "id": "c1f2e3d4-a5b6-7890-abcd-001122334455",
+      "name": "Update Escalation Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "webhookId": "vapi-update-escalation",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi-update-escalation",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "notes": "Production URL: https://[your-instance].app.n8n.cloud/webhook/vapi-update-escalation — set this as the server URL in the update_escalation tool definition in VAPI."
+    },
+    {
+      "id": "d2e3f4a5-b6c7-8901-bcde-112233445566",
+      "name": "Extract Update Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300],
+      "parameters": {
+        "jsCode": "// Extract update payload from VAPI tool call\nconst body = $input.first().json.body;\n\nif (!body || !body.message) {\n  return [{ json: { isToolCall: false, toolCallId: '' } }];\n}\n\nconst message = body.message;\nconst toolCallList = message.toolCallList;\n\nif (!toolCallList || toolCallList.length === 0) {\n  return [{ json: { isToolCall: false, toolCallId: '' } }];\n}\n\nconst toolCall = toolCallList[0];\nconst args = toolCall.function?.arguments;\nconst parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;\n\nreturn [{\n  json: {\n    isToolCall: true,\n    toolCallId: toolCall.id,\n    callId: parsedArgs.call_id || message.call?.id || '',\n    newPreferredTime: parsedArgs.preferred_time || null,\n    newCallerName: parsedArgs.user_name || null,\n    newCallerEmail: parsedArgs.user_email || null,\n    newCategory: parsedArgs.category || null,\n    newStatus: parsedArgs.status || null\n  }\n}];"
+      }
+    },
+    {
+      "id": "e3f4a5b6-c7d8-9012-cdef-223344556677",
+      "name": "IF: Is Tool Call?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [780, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a1b2c3d4-check-tool-call",
+              "leftValue": "={{ $json.toolCallId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f4a5b6c7-d8e9-0123-def0-334455667788",
+      "name": "Airtable: Search Escalation by Call ID",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [1060, 180],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "0dskSFLlZcR7qZGl",
+          "name": "Airtable Auth"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appeJd4QOr98COUYM",
+          "mode": "list",
+          "cachedResultName": "Daniel Okpara RelayPay Support",
+          "cachedResultUrl": "https://airtable.com/appeJd4QOr98COUYM"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl5RIRrdUnVAQq80",
+          "mode": "list",
+          "cachedResultName": "Escalations",
+          "cachedResultUrl": "https://airtable.com/appeJd4QOr98COUYM/tbl5RIRrdUnVAQq80"
+        },
+        "filterByFormula": "={{ `{Call ID}=\"${$('Extract Update Data').item.json.callId}\"` }}",
+        "returnAll": false,
+        "limit": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "a5b6c7d8-e9f0-1234-ef01-445566778899",
+      "name": "Respond to Webhook (Not Tool Call)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1060, 420],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": true\n}",
+        "options": {}
+      }
+    },
+    {
+      "id": "b6c7d8e9-f0a1-2345-f012-556677889900",
+      "name": "IF: Record Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1340, 180],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b2c3d4e5-check-record-id",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c7d8e9f0-a1b2-3456-0123-667788990011",
+      "name": "Calculate New Appointment Time",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 80],
+      "parameters": {
+        "jsCode": "// Merge new values over existing Airtable record fields\nconst updateData = $('Extract Update Data').first().json;\nconst airtableRecord = $input.first().json;\n\nconst recordId = airtableRecord.id;\nconst oldAppointmentTime = airtableRecord['Appointment Time'];\nconst callerName = updateData.newCallerName || airtableRecord['User Name'];\nconst callerEmail = updateData.newCallerEmail || airtableRecord['User Email'];\nconst category = updateData.newCategory || airtableRecord['Category'];\nconst status = updateData.newStatus || airtableRecord['Status'] || 'Open';\n\nlet appointmentStart;\nlet timeChanged = false;\n\nif (updateData.newPreferredTime) {\n  appointmentStart = parseNaturalTime(updateData.newPreferredTime);\n  if (!appointmentStart || isNaN(appointmentStart.getTime()) || appointmentStart < new Date()) {\n    appointmentStart = getNextBusinessDay();\n  }\n  timeChanged = true;\n} else {\n  appointmentStart = new Date(oldAppointmentTime);\n}\n\nconst appointmentEnd = new Date(appointmentStart);\nappointmentEnd.setMinutes(appointmentEnd.getMinutes() + 30);\n\nconst appointmentDisplay = appointmentStart.toLocaleString('en-NG', {\n  weekday: 'long',\n  year: 'numeric',\n  month: 'long',\n  day: 'numeric',\n  hour: '2-digit',\n  minute: '2-digit',\n  timeZone: 'Africa/Lagos'\n});\n\nfunction parseNaturalTime(input) {\n  const text = input.toLowerCase().trim();\n  const now = new Date();\n  const watNow = new Date(now.getTime() + (1 * 60 * 60 * 1000));\n  let hour = 10;\n  let minute = 0;\n  const timeMatch = text.match(/(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?/i);\n  if (timeMatch) {\n    hour = parseInt(timeMatch[1]);\n    minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;\n    const ampm = timeMatch[3];\n    if (ampm) {\n      if (ampm.toLowerCase() === 'pm' && hour < 12) hour += 12;\n      if (ampm.toLowerCase() === 'am' && hour === 12) hour = 0;\n    } else if (hour < 8) {\n      hour += 12;\n    }\n  }\n  if (!timeMatch) {\n    if (text.includes('morning')) hour = 10;\n    else if (text.includes('afternoon')) hour = 14;\n    else if (text.includes('evening')) hour = 17;\n  }\n  let targetDate = new Date(watNow);\n  if (text.includes('today')) {\n    // keep today\n  } else if (text.includes('tomorrow')) {\n    targetDate.setDate(targetDate.getDate() + 1);\n  } else if (text.includes('next week')) {\n    targetDate.setDate(targetDate.getDate() + 7);\n    while (targetDate.getDay() !== 1) targetDate.setDate(targetDate.getDate() + 1);\n  } else {\n    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];\n    const foundDay = days.findIndex(d => text.includes(d));\n    if (foundDay !== -1) {\n      const currentDay = watNow.getDay();\n      let daysUntil = foundDay - currentDay;\n      if (daysUntil <= 0) daysUntil += 7;\n      targetDate.setDate(targetDate.getDate() + daysUntil);\n    } else if (text.includes('in') && text.includes('hour')) {\n      const hoursMatch = text.match(/in\\s+(\\d+|an?)\\s+hour/);\n      if (hoursMatch) {\n        const hrs = hoursMatch[1] === 'an' || hoursMatch[1] === 'a' ? 1 : parseInt(hoursMatch[1]);\n        targetDate = new Date(watNow.getTime() + (hrs * 60 * 60 * 1000));\n        hour = targetDate.getUTCHours();\n        minute = targetDate.getUTCMinutes();\n      }\n    } else {\n      targetDate.setDate(targetDate.getDate() + 1);\n    }\n  }\n  targetDate.setUTCHours(hour - 1, minute, 0, 0);\n  const utcHour = targetDate.getUTCHours();\n  if (utcHour < 8) targetDate.setUTCHours(8, 0, 0, 0);\n  if (utcHour >= 16) {\n    targetDate.setUTCHours(8, 0, 0, 0);\n    targetDate.setDate(targetDate.getDate() + 1);\n  }\n  while (targetDate.getDay() === 0 || targetDate.getDay() === 6) {\n    targetDate.setDate(targetDate.getDate() + 1);\n  }\n  return targetDate;\n}\n\nfunction getNextBusinessDay() {\n  const now = new Date();\n  let next = new Date(now);\n  next.setDate(next.getDate() + 1);\n  while (next.getDay() === 0 || next.getDay() === 6) next.setDate(next.getDate() + 1);\n  next.setUTCHours(9, 0, 0, 0);\n  return next;\n}\n\nreturn [{\n  json: {\n    toolCallId: updateData.toolCallId,\n    recordId,\n    callerName,\n    callerEmail,\n    category,\n    status,\n    appointmentStart: appointmentStart.toISOString(),\n    appointmentEnd: appointmentEnd.toISOString(),\n    appointmentDisplay,\n    timeChanged,\n    oldAppointmentStart: oldAppointmentTime,\n    oldCallerName: airtableRecord['User Name']\n  }\n}];"
+      }
+    },
+    {
+      "id": "d8e9f0a1-b2c3-4567-1234-778899001122",
+      "name": "Return Error: Record Not Found",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 300],
+      "parameters": {
+        "jsCode": "const updateData = $('Extract Update Data').first().json;\n\nreturn [{\n  json: {\n    results: [{\n      toolCallId: updateData.toolCallId,\n      result: 'I was unable to locate your escalation record. Please double-check the call ID, or I can create a new escalation request for you. What would you prefer?'\n    }]\n  }\n}];"
+      }
+    },
+    {
+      "id": "f0a1b2c3-d4e5-6789-3456-990011223344",
+      "name": "Airtable: Update Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [1900, 80],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "0dskSFLlZcR7qZGl",
+          "name": "Airtable Auth"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appeJd4QOr98COUYM",
+          "mode": "list",
+          "cachedResultName": "Daniel Okpara RelayPay Support",
+          "cachedResultUrl": "https://airtable.com/appeJd4QOr98COUYM"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl5RIRrdUnVAQq80",
+          "mode": "list",
+          "cachedResultName": "Escalations",
+          "cachedResultUrl": "https://airtable.com/appeJd4QOr98COUYM/tbl5RIRrdUnVAQq80"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.recordId }}",
+            "User Name": "={{ $json.callerName }}",
+            "User Email": "={{ $json.callerEmail }}",
+            "Category": "={{ $json.category }}",
+            "Appointment Time": "={{ $json.appointmentStart }}",
+            "Status": "={{ $json.status }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "User Name",
+              "displayName": "User Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "User Email",
+              "displayName": "User Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                { "name": "Compliance", "value": "Compliance" },
+                { "name": "Account", "value": "Account" },
+                { "name": "Dispute", "value": "Dispute" },
+                { "name": "Other", "value": "Other" }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Escalation Reason",
+              "displayName": "Escalation Reason",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Call Booked",
+              "displayName": "Call Booked",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Appointment Time",
+              "displayName": "Appointment Time",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                { "name": "Open", "value": "Open" },
+                { "name": "In Progress", "value": "In Progress" },
+                { "name": "Closed", "value": "Closed" }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Call ID",
+              "displayName": "Call ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      }
+    },
+    {
+      "id": "e9f0a1b2-c3d4-5678-2345-889900112233",
+      "name": "Respond to Webhook (Error)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1900, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-e5f6-7890-4567-001122334456",
+      "name": "IF: Time Changed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [2180, 80],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c3d4e5f6-check-time-changed",
+              "leftValue": "={{ $('Calculate New Appointment Time').item.json.timeChanged }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b2c3d4e5-f6a7-8901-5678-112233445567",
+      "name": "Google Calendar: Get All Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [2460, -60],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "wj9vinJaF69w1Gib",
+          "name": "Google Calendar OAuth2 API"
+        }
+      },
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "afbf7e27141f409202f526f2257c27a94ce7e8cb3577ad75f9f6f25976e41d80@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "RelayPay Support Callbacks"
+        },
+        "returnAll": false,
+        "limit": 5,
+        "additionalFields": {
+          "timeMin": "={{ $('Calculate New Appointment Time').item.json.oldAppointmentStart }}",
+          "timeMax": "={{ new Date(new Date($('Calculate New Appointment Time').item.json.oldAppointmentStart).getTime() + 40 * 60 * 1000).toISOString() }}",
+          "singleEvents": true
+        }
+      }
+    },
+    {
+      "id": "c3d4e5f6-a7b8-9012-6789-223344556678",
+      "name": "Pick Event ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2740, -60],
+      "parameters": {
+        "jsCode": "const events = $input.all();\nconst calcData = $('Calculate New Appointment Time').first().json;\n\nlet calendarEventId = null;\n\nfor (const event of events) {\n  const summary = event.json.summary || '';\n  if (summary.includes('RelayPay Support Callback')) {\n    calendarEventId = event.json.id;\n    break;\n  }\n}\n\nreturn [{\n  json: {\n    ...calcData,\n    calendarEventId,\n    calendarEventFound: calendarEventId !== null\n  }\n}];"
+      }
+    },
+    {
+      "id": "d4e5f6a7-b8c9-0123-7890-334455667789",
+      "name": "Google Calendar: Update Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [3020, -60],
+      "continueOnFail": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "wj9vinJaF69w1Gib",
+          "name": "Google Calendar OAuth2 API"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "value": "afbf7e27141f409202f526f2257c27a94ce7e8cb3577ad75f9f6f25976e41d80@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "RelayPay Support Callbacks"
+        },
+        "eventId": "={{ $json.calendarEventId }}",
+        "updateFields": {
+          "summary": "=RelayPay Support Callback - {{ $('Calculate New Appointment Time').item.json.callerName }}",
+          "start": {
+            "dateTime": "={{ $('Calculate New Appointment Time').item.json.appointmentStart }}",
+            "timezone": "Africa/Lagos"
+          },
+          "end": {
+            "dateTime": "={{ $('Calculate New Appointment Time').item.json.appointmentEnd }}",
+            "timezone": "Africa/Lagos"
+          }
+        }
+      }
+    },
+    {
+      "id": "e5f6a7b8-c9d0-1234-8901-445566778890",
+      "name": "Format Confirmation Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3300, 80],
+      "parameters": {
+        "jsCode": "// Always pull from Calculate New Appointment Time — works for both time-changed and unchanged paths\nconst calcData = $('Calculate New Appointment Time').first().json;\n\nreturn [{\n  json: {\n    results: [{\n      toolCallId: calcData.toolCallId,\n      result: `Your escalation has been updated successfully, ${calcData.callerName}. A RelayPay support specialist will contact you at: ${calcData.appointmentDisplay}. A confirmation will be sent to your email address. Is there anything else I can help you with?`\n    }]\n  }\n}];"
+      }
+    },
+    {
+      "id": "f6a7b8c9-d0e1-2345-9012-556677889901",
+      "name": "Respond to Webhook (Success)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [3580, 80],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Update Escalation Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Update Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Update Data": {
+      "main": [
+        [
+          {
+            "node": "IF: Is Tool Call?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Is Tool Call?": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Search Escalation by Call ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook (Not Tool Call)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable: Search Escalation by Call ID": {
+      "main": [
+        [
+          {
+            "node": "IF: Record Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Record Found?": {
+      "main": [
+        [
+          {
+            "node": "Calculate New Appointment Time",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Error: Record Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate New Appointment Time": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Update Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Error: Record Not Found": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook (Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable: Update Record": {
+      "main": [
+        [
+          {
+            "node": "IF: Time Changed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Time Changed?": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar: Get All Events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Confirmation Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar: Get All Events": {
+      "main": [
+        [
+          {
+            "node": "Pick Event ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Event ID": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar: Update Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar: Update Event": {
+      "main": [
+        [
+          {
+            "node": "Format Confirmation Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Confirmation Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook (Success)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a2b3c4d5-e6f7-8901-abcd-000000000001",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2c950992e72c1f7626700d7c88cf07f1fa608dd6abbe3ba3e9ff0a6cfdcbd670"
+  },
+  "id": "",
+  "tags": []
+}
